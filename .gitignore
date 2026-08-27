@@ -1,0 +1,53 @@
+# Python & Environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Model Weights & Large Files
+*.safetensors
+*.bin
+*.h5
+*.pt
+*.pth
+SatQueryAI_Colab.zip
+*.zip
+
+# Data & Imagery (Do not push heavy GeoTIFFs to GitHub)
+data/raw/
+data/processed/
+data/temp_uploads/
+*.tif
+*.tiff
+
+# Allow test samples
+!data/test_samples/
+!data/processed/ben_sample.json
+
+# UI & Next.js
+ui/node_modules/
+ui/.next/
+ui/out/
+ui/build/
+ui/.env.local
+ui/.env.development.local
+ui/.env.test.local
+ui/.env.production.local
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Secrets
+.env
