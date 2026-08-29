@@ -46,11 +46,19 @@ class SatQueryAgent:
         
         # Logic 1: If there is exactly one image, it's a single-image task
         if len(images) == 1:
-            selected_tool = "single_image_vqa"
-            trace.append({
-                "step": "Routing", 
-                "action": "Selected single_image_vqa because exactly 1 image was provided."
-            })
+            query_lower = state.get("query", "").lower()
+            if any(keyword in query_lower for keyword in ["describe", "caption", "summarize", "what is this"]):
+                selected_tool = "single_image_captioning"
+                trace.append({
+                    "step": "Routing", 
+                    "action": "Selected single_image_captioning because exactly 1 image was provided and captioning keywords detected."
+                })
+            else:
+                selected_tool = "single_image_vqa"
+                trace.append({
+                    "step": "Routing", 
+                    "action": "Selected single_image_vqa because exactly 1 image was provided."
+                })
             
         # Logic 2: If there are two images, we check if they are Optical + SAR
         elif len(images) == 2:
@@ -85,7 +93,18 @@ class SatQueryAgent:
             )
             trace.append({
                 "step": "Execution", 
-                "tool_used": "Single-Image VQA (Qwen2-VL-LoRA)",
+                "tool_used": "Single-Image VQA (Qwen2-VL)",
+                "status": "Success"
+            })
+            return {"result": answer, "execution_trace": trace}
+            
+        elif tool == "single_image_captioning":
+            answer = self.tools.single_image_captioning(
+                image_path=state["image_paths"][0]
+            )
+            trace.append({
+                "step": "Execution", 
+                "tool_used": "Single-Image Captioning (Qwen2-VL)",
                 "status": "Success"
             })
             return {"result": answer, "execution_trace": trace}

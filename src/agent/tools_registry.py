@@ -3,8 +3,8 @@ import numpy as np
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 from peft import PeftModel
 
-# Change this import at the top of tools_registry.py
 from src.data_prep.geotiff_loader import load_sentinel2_optical, load_sentinel1_sar
+import os
 
 class RemoteSensingTools:
     """
@@ -33,8 +33,12 @@ class RemoteSensingTools:
         )
         
         # 2. Attach the LoRA "sticky notes" we just trained
-        print("🔗 Merging trained LoRA weights with the base model...")
-        self.model = PeftModel.from_pretrained(base_model, lora_path)
+        if os.path.exists(lora_path):
+            print("🔗 Merging trained LoRA weights with the base model...")
+            self.model = PeftModel.from_pretrained(base_model, lora_path)
+        else:
+            print("⚠️ LoRA weights not found. Falling back to base model for inference.")
+            self.model = base_model
         
         # 3. Lock the model (Inference mode, NO training)
         self.model.eval()
@@ -182,6 +186,55 @@ class RemoteSensingTools:
         # 4. Generate the change description
         with torch.no_grad():
             generated_ids = self.model.generate(**inputs, max_new_tokens=75)
+            
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        
+        response = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+        
+        return response
+
+    def single_image_captioning(self, image_path):
+        """
+        TOOL 4: Single-Image Captioning
+        Generates a detailed caption describing the scene in a single optical satellite image.
+        """
+        print(f"🔍 Tool Executing: Single-Image Captioning on {image_path}")
+        
+        # 1. Load the raw satellite image and normalize it
+        tensor_img = load_sentinel2_optical(image_path)
+        
+        # Convert it back to a standard NumPy image array for the Qwen processor
+        img_array = (tensor_img.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+        
+        # 2. Format the prompt for captioning
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": "Describe the land-cover and major objects visible in this image in detail."}
+                ]
+            }
+        ]
+        text_input = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        
+        # 3. Prepare inputs
+        inputs = self.processor(
+            text=[text_input],
+            images=[img_array],
+            return_tensors="pt",
+            padding=True
+        ).to(self.device)
+        
+        # 4. Generate
+        with torch.no_grad():
+            generated_ids = self.model.generate(**inputs, max_new_tokens=100)
             
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)

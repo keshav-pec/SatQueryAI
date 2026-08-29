@@ -62,6 +62,14 @@ def custom_collate_fn(batch, processor):
         text=texts, images=images, return_tensors="pt", padding=True
     )
 
+    # Mask padding tokens in labels so they don't contribute to the loss
+    labels = batch_inputs["input_ids"].clone()
+    pad_token_id = processor.tokenizer.pad_token_id if processor.tokenizer.pad_token_id is not None else processor.tokenizer.eos_token_id
+    labels[labels == pad_token_id] = -100
+    
+    # Assign labels to batch
+    batch_inputs["labels"] = labels
+
     return batch_inputs
 
 
@@ -134,6 +142,8 @@ def train(args):
     global_step = 0
     start_time = time.time()
 
+    scaler = torch.amp.GradScaler(device, enabled=(device=="cuda"))
+
     for epoch in range(args.epochs):
         epoch_loss = 0.0
         epoch_steps = 0
@@ -142,18 +152,20 @@ def train(args):
         for step, batch in enumerate(train_loader):
             batch = {k: v.to(device) for k, v in batch.items()}
 
-            # Forward pass
-            outputs = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                pixel_values=batch.get("pixel_values"),
-                image_grid_thw=batch.get("image_grid_thw"),
-                mm_token_type_ids=batch.get("mm_token_type_ids"),
-                labels=batch["input_ids"],
-            )
+            # Forward pass with Automatic Mixed Precision (AMP)
+            with torch.autocast(device_type="cuda" if device == "cuda" else "cpu", dtype=torch.bfloat16 if device != "cpu" else torch.float32, enabled=(device!="cpu")):
+                outputs = model(
+                    input_ids=batch["input_ids"],
+                    attention_mask=batch["attention_mask"],
+                    pixel_values=batch.get("pixel_values"),
+                    image_grid_thw=batch.get("image_grid_thw"),
+                    mm_token_type_ids=batch.get("mm_token_type_ids"),
+                    labels=batch["labels"],
+                )
 
-            loss = outputs.loss / args.accumulation_steps
-            loss.backward()
+                loss = outputs.loss / args.accumulation_steps
+            
+            scaler.scale(loss).backward()
 
             epoch_loss += outputs.loss.item()
             epoch_steps += 1
@@ -162,8 +174,12 @@ def train(args):
             # Gradient accumulation step
             if (step + 1) % args.accumulation_steps == 0 or (step + 1) == len(train_loader):
                 # Gradient clipping to prevent explosion
+                scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
+                
+                scaler.step(optimizer)
+                scaler.update()
+                
                 scheduler.step()
                 optimizer.zero_grad()
 
@@ -204,7 +220,7 @@ def train(args):
                     pixel_values=batch.get("pixel_values"),
                     image_grid_thw=batch.get("image_grid_thw"),
                     mm_token_type_ids=batch.get("mm_token_type_ids"),
-                    labels=batch["input_ids"],
+                    labels=batch["labels"],
                 )
                 val_loss += outputs.loss.item()
                 val_steps += 1

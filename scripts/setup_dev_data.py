@@ -69,9 +69,10 @@ def setup_data(num_samples: int = 200, dry_run: bool = False, seed: int = 42):
     print("Step 1: Loading BigEarthNet metadata from HuggingFace...")
     
     try:
+        # We use BigEarthNet.txt which contains ready-made VQA pairs
         ds = load_dataset(
-            "BIFOLD-BigEarthNetv2-0/BigEarthNet",
-            split="train",
+            "BIFOLD-BigEarthNetv2-0/BigEarthNet.txt",
+            split="all_data",
             streaming=True,
         )
     except Exception as e:
@@ -83,68 +84,42 @@ def setup_data(num_samples: int = 200, dry_run: bool = False, seed: int = 42):
     # ── Step 2: Sample patches and extract metadata ──
     print(f"Step 2: Sampling {num_samples} patches...")
     
-    # Collect patches with their labels
-    # Since we're streaming, we take more than needed and randomly sample
+    # Collect patches with their questions and answers
     buffer_size = num_samples * 3  # Over-sample to allow filtering
-    patches = []
+    all_qa_pairs = []
     
     for i, item in enumerate(ds):
         if i >= buffer_size:
             break
             
-        # Extract patch ID and labels
         patch_id = item.get("patch_id", item.get("s2_name", item.get("name", f"patch_{i:06d}")))
-        
-        # Labels can come in different formats depending on the HF dataset version
-        labels_raw = item.get("labels", item.get("new_labels", item.get("label", [])))
-        
-        # Convert numeric labels to strings if needed
-        if labels_raw and isinstance(labels_raw[0], int):
-            labels = [BEN_19_CLASS_MAP.get(l, f"Class_{l}") for l in labels_raw]
-        elif labels_raw and isinstance(labels_raw[0], str):
-            labels = list(labels_raw)
-        else:
-            continue  # Skip patches with no labels
-        
-        if not labels:
-            continue
-        
-        # Extract S1 name if available  
+        query = item.get("input")
+        answer = item.get("output")
         s1_name = item.get("s1_name", f"{patch_id}_S1")
         
-        patches.append({
+        if not query or not answer:
+            continue
+            
+        all_qa_pairs.append({
             "patch_id": patch_id,
             "s1_name": s1_name,
-            "labels": labels,
+            "query": query,
+            "answer": answer
         })
         
         if (i + 1) % 500 == 0:
-            print(f"  Scanned {i+1} patches, collected {len(patches)}...")
+            print(f"  Scanned {i+1} records, collected {len(all_qa_pairs)}...")
     
-    if not patches:
-        print("Warning: Could not extract any patches with labels. Using fallback.")
+    if not all_qa_pairs:
+        print("Warning: Could not extract any QA pairs. Using fallback.")
         _create_fallback_data(num_samples, output_dir, dry_run)
         return
     
     # Random sample to the target count
-    if len(patches) > num_samples:
-        patches = random.sample(patches, num_samples)
+    if len(all_qa_pairs) > num_samples:
+        all_qa_pairs = random.sample(all_qa_pairs, num_samples)
     
-    print(f"  Selected {len(patches)} patches.\n")
-    
-    # ── Step 3: Generate VQA pairs ──
-    print("Step 3: Generating VQA training pairs...")
-    
-    all_qa_pairs = []
-    for patch in patches:
-        qa_pairs = generate_vqa_pairs(
-            patch_id=patch["patch_id"],
-            labels=patch["labels"],
-            max_pairs=3,
-        )
-        all_qa_pairs.extend(qa_pairs)
-    
-    print(f"  Generated {len(all_qa_pairs)} QA pairs from {len(patches)} patches.\n")
+    print(f"  Selected {len(all_qa_pairs)} genuine VQA pairs.\n")
     
     if dry_run:
         print("DRY RUN — Showing first 5 QA pairs:\n")
@@ -156,7 +131,7 @@ def setup_data(num_samples: int = 200, dry_run: bool = False, seed: int = 42):
         print("No files written.")
         return
     
-    # ── Step 4: Save ──
+    # ── Step 3: Save ──
     output_path = os.path.join(output_dir, "ben_train.json")
     with open(output_path, "w") as f:
         json.dump(all_qa_pairs, f, indent=2)
@@ -165,9 +140,7 @@ def setup_data(num_samples: int = 200, dry_run: bool = False, seed: int = 42):
     
     # Also save a metadata summary
     summary = {
-        "num_patches": len(patches),
         "num_qa_pairs": len(all_qa_pairs),
-        "unique_labels": sorted(set(l for p in patches for l in p["labels"])),
         "seed": seed,
     }
     summary_path = os.path.join(output_dir, "ben_train_summary.json")
