@@ -16,8 +16,8 @@ pip-delete-this-directory.txt
 *.h5
 *.pt
 *.pth
-SatQueryAI_Colab.zip
 *.zip
+*.crdownload
 
 # Data & Imagery (Do not push heavy GeoTIFFs to GitHub)
 data/raw/
@@ -30,15 +30,15 @@ data/temp_uploads/
 !data/test_samples/
 !data/processed/ben_sample.json
 
-# UI & Next.js
-ui/node_modules/
-ui/.next/
-ui/out/
-ui/build/
-ui/.env.local
-ui/.env.development.local
-ui/.env.test.local
-ui/.env.production.local
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
 
 # OS Files
 .DS_Store
@@ -51,3 +51,11 @@ Thumbs.db
 
 # Secrets
 .env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Notebooks checkpoints
+.ipynb_checkpoints/

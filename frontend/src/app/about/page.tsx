@@ -127,7 +127,7 @@ const TECH_STACK = [
   { name: "Next.js", category: "Frontend" },
   { name: "TypeScript", category: "Frontend" },
   { name: "Framer Motion", category: "Animations" },
-  { name: "Tailwind CSS", category: "Styling" },
+  { name: "CSS Variables", category: "Styling" },
 ];
 
 export default function AboutPage() {

@@ -37,7 +37,9 @@ interface AnalysisResponse {
   execution_trace: ExecutionTraceStep[];
 }
 
-const API_ENDPOINT = "http://127.0.0.1:8050/analyze";
+const API_ENDPOINT = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/analyze`
+  : "http://127.0.0.1:8050/analyze";
 
 // ─── Loader Components ────────────────────────────────────────────────────
 function NeuralConnector({ index }: { index: number }) {
@@ -236,7 +238,7 @@ function FileDropzone({
           type="file"
           id={id}
           style={{ display: "none" }}
-          accept=".tif,.tiff"
+          accept=".tif,.tiff,.png,.jpg,.jpeg"
           onChange={(e) => onFileChange(e.target.files?.[0] || null)}
         />
 
@@ -318,7 +320,7 @@ function FileDropzone({
             <div>
               <p style={{ fontSize: "0.875rem", color: "var(--grey-500)" }}>{hint}</p>
               <p style={{ fontSize: "0.75rem", color: "var(--grey-400)" }}>
-                GeoTIFF (.tif, .tiff)
+                GeoTIFF (.tif) · PNG · JPEG
               </p>
             </div>
           </div>

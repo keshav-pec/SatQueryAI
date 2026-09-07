@@ -1,8 +1,9 @@
 """
 Data preparation script for SatQuery AI.
 
-Downloads BigEarthNet metadata from HuggingFace, samples N patches,
+Downloads BigEarthNet.txt metadata from HuggingFace, samples N patches,
 and generates VQA training data with corresponding image references.
+BigEarthNet.txt is the primary dataset for remote-sensing domain adaptation.
 
 Usage:
     python scripts/setup_dev_data.py --num_samples 200

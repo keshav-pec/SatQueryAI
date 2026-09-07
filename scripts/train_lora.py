@@ -1,8 +1,9 @@
 """
 LoRA fine-tuning script for SatQuery AI.
 
-Trains the Qwen2-VL vision-language model on BigEarthNet VQA data
+Trains the Qwen2-VL vision-language model on BigEarthNet.txt VQA data
 using LoRA (Low-Rank Adaptation) for memory-efficient fine-tuning.
+BigEarthNet.txt serves as the primary dataset for remote-sensing adaptation.
 
 Usage:
     python scripts/train_lora.py --epochs 2 --batch_size 1 --lr 2e-5
@@ -275,11 +276,11 @@ if __name__ == "__main__":
     parser.add_argument("--accumulation_steps", type=int, default=4, help="Gradient accumulation steps")
     parser.add_argument("--checkpoint_steps", type=int, default=0, help="Save checkpoint every N steps (0 = off)")
     parser.add_argument("--data_path", type=str, default="data/processed/ben_train.json",
-                        help="Path to training JSON data")
+                        help="Path to BigEarthNet training JSON data")
     parser.add_argument("--s1_dir", type=str, default="data/raw/Sentinel-1",
-                        help="Sentinel-1 image directory")
+                        help="Sentinel-1 (SAR) image directory")
     parser.add_argument("--s2_dir", type=str, default="data/raw/Sentinel-2",
-                        help="Sentinel-2 image directory")
+                        help="Sentinel-2 (Optical) image directory")
     args = parser.parse_args()
 
     train(args)
