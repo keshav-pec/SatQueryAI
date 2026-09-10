@@ -62,7 +62,9 @@ class SatQueryAgent:
             
         # Logic 2: If there are two images, we check if they are Optical + SAR
         elif len(images) == 2:
-            if "S1" in images[0] and "S2" in images[1]:
+            has_s1 = "S1" in images[0] or "S1" in images[1]
+            has_s2 = "S2" in images[0] or "S2" in images[1]
+            if has_s1 and has_s2:
                 selected_tool = "cross_modal_vqa"
                 trace.append({
                     "step": "Routing", 
@@ -111,7 +113,10 @@ class SatQueryAgent:
             
         elif tool == "cross_modal_vqa":
             paths = state["image_paths"]
-            s1_path, s2_path = paths[0], paths[1]
+            if "S1" in paths[0]:
+                s1_path, s2_path = paths[0], paths[1]
+            else:
+                s1_path, s2_path = paths[1], paths[0]
             
             answer = self.tools.cross_modal_vqa(
                 s1_path=s1_path, 

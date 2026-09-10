@@ -47,7 +47,7 @@ function NeuralConnector({ index }: { index: number }) {
   const numConnectors = 3;
   const totalCycle = duration * numConnectors;
   const delay = index * duration;
-  
+
   return (
     <svg
       viewBox="0 0 120 40"
@@ -165,8 +165,7 @@ function ExecutionTraceLoader() {
 // ─── Sample Queries ───────────────────────────────────────────────────────
 const SAMPLE_QUERIES = [
   "Describe the land-cover and major objects visible in this image.",
-  "What is the primary land cover shown in this image?",
-  "Are there any water bodies in this region?",
+  "Compare the two images and highlight the main differences.",
   "What changed between these two dates?",
   "Use the optical and SAR images together to identify built-up regions.",
 ];
@@ -546,16 +545,16 @@ export default function AnalysisPage() {
   const [response, setResponse] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim() || !file1) return;
+  const submitAnalysis = async (overrideQuery?: string) => {
+    const activeQuery = overrideQuery || query.trim();
+    if (!activeQuery || !file1) return;
 
     setIsLoading(true);
     setError(null);
     setResponse(null);
 
     const formData = new FormData();
-    formData.append("query", query.trim());
+    formData.append("query", activeQuery);
     formData.append("file1", file1);
     if (file2) formData.append("file2", file2);
 
@@ -579,7 +578,17 @@ export default function AnalysisPage() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitAnalysis();
+  };
+
+  const handleCaption = async () => {
+    await submitAnalysis("caption");
+  };
+
   const canSubmit = query.trim().length > 0 && file1 !== null && !isLoading;
+  const canCaption = file1 !== null && !isLoading;
 
   return (
     <div style={{ paddingTop: "68px", height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -724,40 +733,71 @@ export default function AnalysisPage() {
             />
 
             {/* Submit */}
-            <button
-              type="submit"
-              disabled={!canSubmit}
-              className="btn btn-primary"
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                fontSize: "0.9375rem",
-                ...(canSubmit ? {} : {
-                  background: "var(--grey-200)",
-                  color: "var(--grey-400)",
-                  boxShadow: "none",
-                  cursor: "not-allowed",
-                }),
-              }}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} style={{ animation: "spin-slow 0.75s linear infinite" }} />
-                  <span>Analysing...</span>
-                </>
-              ) : (
-                <>
-                  <span>Run Analysis</span>
-                  <ArrowRight size={18} />
-                </>
-              )}
-            </button>
+            <div style={{ display: "flex", gap: "0.75rem", flexDirection: "column" }}>
+              <button
+                type="button"
+                disabled={!canCaption}
+                onClick={handleCaption}
+                className="btn btn-secondary"
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  fontSize: "0.9375rem",
+                  background: canCaption ? "var(--surface-white)" : "var(--grey-50)",
+                  border: "1.5px solid",
+                  borderColor: canCaption ? "var(--grey-300)" : "var(--grey-200)",
+                  color: canCaption ? "var(--grey-700)" : "var(--grey-400)",
+                  ...(canCaption ? {} : { cursor: "not-allowed" }),
+                }}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={18} style={{ animation: "spin-slow 0.75s linear infinite" }} />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileImage size={18} />
+                    <span>Caption Image</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="btn btn-primary"
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  fontSize: "0.9375rem",
+                  ...(canSubmit ? {} : {
+                    background: "var(--grey-200)",
+                    color: "var(--grey-400)",
+                    boxShadow: "none",
+                    cursor: "not-allowed",
+                  }),
+                }}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={18} style={{ animation: "spin-slow 0.75s linear infinite" }} />
+                    <span>Analysing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Run Analysis</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            </div>
           </form>
         </aside>
 
         {/* ─── Right Panel: Output ─── */}
         <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface-white)", position: "relative" }}>
-          
+
           {/* Background Satellite */}
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 0 }}>
             <div className="animate-float">
