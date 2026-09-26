@@ -1,49 +1,32 @@
-import type { Metadata } from "next";
-import { Inter, Source_Code_Pro } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
+import { Navbar } from "@/components/site/Navbar";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  display: "swap",
-});
-
-const sourceCodePro = Source_Code_Pro({
-  variable: "--font-source-code",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
+const grotesk = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap" });
+const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "SatQuery AI — Interactive Vision-Language Assistant for Remote Sensing",
+  title: {
+    default: "SatQuery AI — Agentic Vision-Language Assistant for Remote Sensing",
+    template: "%s · SatQuery AI",
+  },
   description:
-    "An agentic vision-language assistant for analysing single and paired remote-sensing images through natural-language queries. Supports VQA, change detection, cross-modal fusion, and source-grounded answering.",
-  keywords: [
-    "satellite imagery",
-    "remote sensing",
-    "VQA",
-    "change detection",
-    "SAR",
-    "optical imagery",
-    "AI",
-    "vision-language model",
-  ],
+    "Ask questions of satellite imagery in plain language. SatQuery AI validates optical, SAR and multi-temporal inputs, routes the query to remote-sensing specialist models and returns evidence-grounded answers with maps, charts, confidence and an auditable execution trace.",
+  keywords: ["remote sensing", "vision-language model", "VQA", "visual grounding", "change detection", "SAR", "Sentinel-2", "Sentinel-1", "ISRO", "Smart India Hackathon"],
+};
+
+export const viewport: Viewport = {
+  themeColor: "#060a12",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${sourceCodePro.variable}`}
-    >
+    <html lang="en" className={`${inter.variable} ${grotesk.variable} ${jetbrains.variable}`}>
       <body>
         <Navbar />
-        <main>{children}</main>
-        <Footer />
+        {children}
       </body>
     </html>
   );

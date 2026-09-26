@@ -1,546 +1,494 @@
-"use client";
-
-import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import {
-  Satellite,
-  ScanSearch,
-  ArrowDownCircle,
-  ArrowRight,
-  Upload,
-  MessageSquareText,
-  Cpu,
-  FileCheck,
-  GitCompareArrows,
-  Radar,
-  Bot,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, Boxes, CheckCircle2, FileDown, GitCompareArrows, Layers3, MessageSquareText, Radar, ScanSearch, ShieldCheck, Waypoints } from "lucide-react";
+import { Footer } from "@/components/site/Footer";
+import { HeroDemo } from "@/components/home/HeroDemo";
+import { AgentPipeline } from "@/components/home/AgentPipeline";
+import { CoverageMap } from "@/components/home/CoverageMap";
+import { Reveal } from "@/components/home/Reveal";
+import { HYD, MUM, NMIA } from "@/lib/demo/data";
+import { TOOL_REGISTRY } from "@/lib/engine/registry";
+import { TASK_LABEL } from "@/lib/engine/intent";
+import { ACCENT, HIGHLIGHT } from "@/lib/palette";
 
-// ─── Fade-in-on-scroll wrapper ─────────────────────────────────────────
-function FadeInSection({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+const ring = (pts: number[][]) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join("") + "Z";
+const q = (s: string) => encodeURIComponent(s);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.15 }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, []);
-
+function SectionHead({ eyebrow, title, body, center }: { eyebrow: string; title: React.ReactNode; body?: string; center?: boolean }) {
   return (
-    <div
-      ref={ref}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(32px)",
-        transition: `all 0.7s ${delay}s cubic-bezier(0.16, 1, 0.3, 1)`,
-      }}
-    >
-      {children}
+    <div className={`mb-10 max-w-3xl ${center ? "mx-auto text-center" : ""}`}>
+      <p className="eyebrow eyebrow-accent mb-3">{eyebrow}</p>
+      <h2 className="display text-[34px] font-semibold text-ink md:text-[42px]">{title}</h2>
+      {body && <p className="mt-4 text-[16px] leading-relaxed text-ink-2">{body}</p>}
     </div>
   );
 }
 
-// ─── Feature Data ──────────────────────────────────────────────────────
-const FEATURES = [
+const CAPABILITIES = [
   {
-    icon: <ScanSearch size={24} />,
-    title: "Single-Image VQA",
-    desc: "Ask natural-language questions about optical or SAR satellite imagery and receive evidence-grounded answers powered by remote-sensing-adapted models.",
+    icon: <MessageSquareText size={18} />,
+    title: "Single-image VQA",
+    req: "Mandatory",
+    body: "Presence, counting, proportion and attribute questions on one optical or SAR image — answered with the pixels that support them.",
+    href: `/analysis?scene=hyd&q=${q("What percentage of the area is covered by vegetation?")}&run=1`,
+    visual: "vqa",
   },
   {
-    icon: <GitCompareArrows size={24} />,
-    title: "Change Detection",
-    desc: "Analyse bi-temporal image pairs to identify, describe, and localise land-cover changes over time with change-based visual question answering.",
+    icon: <ScanSearch size={18} />,
+    title: "Captioning & text-guided grounding",
+    req: "Single-image task #2",
+    body: "Scene descriptions that name the major objects, and referring expressions such as “the water body” resolved to a mask and box.",
+    href: `/analysis?scene=hyd&q=${q("Highlight the water body referred to in the query.")}&run=1`,
+    visual: "ground",
   },
   {
-    icon: <Radar size={24} />,
-    title: "Cross-Modal Fusion",
-    desc: "Combine co-registered optical and SAR imagery to extract complementary information — spectral context from optical, structural from radar.",
+    icon: <GitCompareArrows size={18} />,
+    title: "Multi-temporal change",
+    req: "Mandatory",
+    body: "Change maps, from→to transitions, change-VQA (“has built-up area increased?”) and year-by-year trends from bi-temporal pairs.",
+    href: `/analysis?scene=nmia&q=${q("Has the built-up area increased, decreased, or remained unchanged?")}&run=1`,
+    visual: "change",
   },
   {
-    icon: <ShieldCheck size={24} />,
-    title: "Source-Grounded Answering",
-    desc: "Every response is backed by visual evidence extracted directly from the satellite imagery, ensuring transparent, verifiable, and trustworthy analysis.",
+    icon: <Radar size={18} />,
+    title: "Optical–SAR joint analysis",
+    req: "Mandatory",
+    body: "Co-registered optical and SAR fused at evidence level, with a per-pixel inspector showing where each sensor is right — and why.",
+    href: `/analysis?scene=mum-fusion&q=${q("Where do the optical and SAR images disagree, and why?")}&run=1`,
+    visual: "fusion",
   },
   {
-    icon: <Bot size={24} />,
-    title: "Agentic Orchestration",
-    desc: "An intelligent controller automatically classifies your query, selects the appropriate specialist models, validates inputs, and sequences the execution pipeline.",
+    icon: <Waypoints size={18} />,
+    title: "Agentic orchestration",
+    req: "Mandatory",
+    body: "The controller routes each query, plans a tool DAG from a typed registry and sets only permitted parameters.",
+    href: "/api-docs#registry",
+    visual: "dag",
+  },
+  {
+    icon: <FileDown size={18} />,
+    title: "Evidence, confidence & reports",
+    req: "Expected output",
+    body: "Overlays on the image and a real map, calibrated confidence, an auditable execution trace, and PDF / GeoJSON / JSON exports.",
+    href: `/analysis?scene=mum-sar&q=${q("Are there any ships or boats visible?")}&run=1`,
+    visual: "report",
   },
 ];
 
-// ─── Step Data ─────────────────────────────────────────────────────────
-const STEPS = [
-  { icon: <Upload size={22} />, title: "Upload", desc: "Upload single or paired GeoTIFF satellite images" },
-  { icon: <MessageSquareText size={22} />, title: "Query", desc: "Ask a natural-language question about the imagery" },
-  { icon: <Cpu size={22} />, title: "AI Processes", desc: "The agent selects and executes specialist models" },
-  { icon: <FileCheck size={22} />, title: "Results", desc: "Receive grounded textual and visual analysis" },
-];
-
-// ─── Neural Impulse Connector SVG ──────────────────────────────────────
-function NeuralConnector({ index }: { index: number }) {
-  const duration = 1.2;
-  const numConnectors = 3;
-  const totalCycle = duration * numConnectors;
-  const delay = index * duration;
-  
+function CapabilityVisual({ kind }: { kind: string }) {
+  if (kind === "vqa") {
+    return (
+      <div className="relative h-full">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={HYD.images.falsecolor} alt="False-colour Sentinel-2 image of Hyderabad" className="h-full w-full object-cover" />
+        <div className="absolute inset-x-3 bottom-3 space-y-1.5">
+          <p className="ml-auto w-fit max-w-[85%] rounded-xl rounded-br-sm bg-saffron/90 px-3 py-1.5 text-[12px] font-medium text-[#1b0f00]">What share is vegetation?</p>
+          <p className="w-fit max-w-[85%] rounded-xl rounded-bl-sm border border-line-2 bg-bg/90 px-3 py-1.5 text-[12px] text-ink">
+            <b>{HYD.classes.vegetation.pct.toFixed(1)} %</b> · NDVI &gt; 0.33 · 4 green patches
+          </p>
+        </div>
+      </div>
+    );
+  }
+  if (kind === "ground") {
+    const g = HYD.grid;
+    const lake = HYD.water_bodies.list[0];
+    return (
+      <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="xMidYMid slice" className="h-full w-full">
+        <image href={HYD.images.truecolor} width={g.width} height={g.height} />
+        <path d={ring(lake.pixel)} fill={HIGHLIGHT} fillOpacity={0.22} stroke={HIGHLIGHT} strokeWidth={3} />
+        <rect x={lake.bbox_px[0]} y={lake.bbox_px[1] - 40} width={250} height={30} rx={6} fill={HIGHLIGHT} />
+        <text x={lake.bbox_px[0] + 12} y={lake.bbox_px[1] - 19} fontSize={17} fontWeight={700} fill="#06131a">
+          Hussain Sagar · 96%
+        </text>
+      </svg>
+    );
+  }
+  if (kind === "change") {
+    const g = NMIA.grid;
+    return (
+      <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="xMidYMid slice" className="h-full w-full">
+        <defs>
+          <clipPath id="cap-change">
+            <polygon points={`${g.width * 0.52},0 ${g.width},0 ${g.width},${g.height} ${g.width * 0.36},${g.height}`} />
+          </clipPath>
+        </defs>
+        <image href={NMIA.images.t1_truecolor} width={g.width} height={g.height} />
+        <g clipPath="url(#cap-change)">
+          <image href={NMIA.images.t2_truecolor} width={g.width} height={g.height} />
+          <image href={NMIA.images.change} width={g.width} height={g.height} opacity={0.55} />
+        </g>
+        <line x1={g.width * 0.52} y1={0} x2={g.width * 0.36} y2={g.height} stroke="#fff" strokeWidth={3} />
+        <path d={ring(NMIA.footprint!.pixel)} fill="none" stroke={HIGHLIGHT} strokeWidth={3} strokeDasharray="10 6" />
+        <text x={20} y={40} fontSize={26} fontWeight={700} fill="#fff" stroke="#000" strokeWidth={0.8}>2017</text>
+        <text x={g.width - 88} y={40} fontSize={26} fontWeight={700} fill="#fff" stroke="#000" strokeWidth={0.8}>2026</text>
+      </svg>
+    );
+  }
+  if (kind === "fusion") {
+    const g = MUM.grid;
+    return (
+      <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="xMidYMid slice" className="h-full w-full">
+        <defs>
+          <clipPath id="cap-sar">
+            <rect x={g.width / 3} y={0} width={g.width / 3} height={g.height} />
+          </clipPath>
+          <clipPath id="cap-fused">
+            <rect x={(2 * g.width) / 3} y={0} width={g.width / 3} height={g.height} />
+          </clipPath>
+        </defs>
+        <image href={MUM.images.truecolor} width={g.width} height={g.height} />
+        <image href={MUM.images.sar_vv} width={g.width} height={g.height} clipPath="url(#cap-sar)" />
+        <g clipPath="url(#cap-fused)">
+          <image href={MUM.images.truecolor} width={g.width} height={g.height} />
+          <image href={MUM.images.cls_fused} width={g.width} height={g.height} opacity={0.75} />
+        </g>
+        <path d={ring(MUM.runways[0].pixel)} fill={ACCENT} fillOpacity={0.2} stroke={ACCENT} strokeWidth={3} />
+        {[g.width / 3, (2 * g.width) / 3].map((x) => (
+          <line key={x} x1={x} x2={x} y1={0} y2={g.height} stroke="#060a12" strokeWidth={5} />
+        ))}
+        {["Optical", "SAR", "Fused"].map((t, i) => (
+          <text key={t} x={(i * g.width) / 3 + 16} y={g.height - 20} fontSize={24} fontWeight={700} fill="#fff" stroke="#000" strokeWidth={0.8}>
+            {t}
+          </text>
+        ))}
+      </svg>
+    );
+  }
+  if (kind === "dag") {
+    const rows = [
+      ["geo-validator", "agent-controller"],
+      ["rs-grounder", "sar-segmenter", "change-detector"],
+      ["optsar-fusion", "cd-vqa", "satquery-vlm"],
+      ["report-builder"],
+    ];
+    return (
+      <div className="flex h-full flex-col justify-center gap-2.5 bg-grid p-5">
+        {rows.map((r, i) => (
+          <div key={i} className="flex flex-wrap items-center justify-center gap-2">
+            {r.map((t) => (
+              <span key={t} className={`rounded-md border px-2 py-1 mono text-[11px] ${i === 0 ? "border-saffron/40 bg-saffron/10 text-saffron-2" : "border-cyan/30 bg-cyan/[0.07] text-cyan-2"}`}>
+                {t}
+              </span>
+            ))}
+          </div>
+        ))}
+        <p className="mt-1 text-center mono text-[10.5px] text-ink-3">{TOOL_REGISTRY.length} registered tools · permitted-parameter ranges enforced</p>
+      </div>
+    );
+  }
   return (
-    <svg
-      viewBox="0 0 120 40"
-      style={{
-        width: "100%",
-        height: "40px",
-        display: "block",
-        overflow: "visible",
-      }}
-      preserveAspectRatio="none"
-    >
-      {/* Base path (static faint line) */}
-      <path
-        d="M 0 20 C 30 20, 30 8, 60 20 S 90 32, 120 20"
-        fill="none"
-        stroke="var(--grey-300)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      {/* Animated impulse path */}
-      <motion.path
-        d="M 0 20 C 30 20, 30 8, 60 20 S 90 32, 120 20"
-        fill="none"
-        stroke={`url(#impulseGrad-${index})`}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeDasharray="20 100"
-        initial={{ strokeDashoffset: 0, opacity: 0 }}
-        animate={{ strokeDashoffset: [0, -120], opacity: [0, 1, 1, 0] }}
-        transition={{
-          duration: duration,
-          ease: "linear",
-          repeat: Infinity,
-          repeatDelay: totalCycle - duration,
-          delay: delay,
-          opacity: {
-            duration: duration,
-            times: [0, 0.1, 0.9, 1],
-            repeat: Infinity,
-            repeatDelay: totalCycle - duration,
-            delay: delay,
-          }
-        }}
-      />
-      {/* Left node (pulses when impulse leaves) */}
-      <motion.circle 
-        cx="0" cy="20" fill="var(--blue-400)" 
-        initial={{ r: 3.5, opacity: 1 }}
-        animate={{ r: [3.5, 6, 3.5], opacity: [1, 0.4, 1] }}
-        transition={{ duration: 0.5, repeat: Infinity, repeatDelay: totalCycle - 0.5, delay: delay }}
-      />
-      {/* Right node (pulses when impulse arrives) */}
-      <motion.circle 
-        cx="120" cy="20" fill="var(--blue-400)" 
-        initial={{ r: 3.5, opacity: 1 }}
-        animate={{ r: [3.5, 6, 3.5], opacity: [1, 0.4, 1] }}
-        transition={{ duration: 0.5, repeat: Infinity, repeatDelay: totalCycle - 0.5, delay: delay + duration * 0.8 }}
-      />
-      <defs>
-        <linearGradient id={`impulseGrad-${index}`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="var(--blue-400)" stopOpacity="0" />
-          <stop offset="40%" stopColor="var(--blue-400)" stopOpacity="1" />
-          <stop offset="60%" stopColor="var(--gold-400)" stopOpacity="1" />
-          <stop offset="100%" stopColor="var(--gold-400)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <div className="flex h-full items-center gap-4 bg-grid p-5">
+      <svg width="86" height="86" viewBox="0 0 86 86" className="shrink-0 -rotate-90">
+        <circle cx="43" cy="43" r="36" fill="none" stroke="#1c2533" strokeWidth="7" />
+        <circle cx="43" cy="43" r="36" fill="none" stroke="#3ecf5b" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 36 * 0.93} 999`} />
+      </svg>
+      <div className="min-w-0 space-y-1.5">
+        <p className="display text-[26px] font-semibold leading-none text-ink">0.93</p>
+        <p className="text-[11.5px] text-ink-3">model · agreement · input quality</p>
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {["report.pdf", "evidence.geojson", "trace.json"].map((f) => (
+            <span key={f} className="rounded border border-line-2 px-1.5 py-0.5 mono text-[10.5px] text-ink-2">
+              {f}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
-export default function LandingPage() {
+const COVERAGE = [
+  ["Input upload & compatibility checking", "geo-validator reads every GeoTIFF: format, CRS, bands, grid, acquisition time; pairs are checked for footprint overlap, co-registration and time gap", "Console → inputs", "/analysis?scene=mismatch"],
+  ["Remote-sensing adaptation", "SatQuery-VLM = Qwen2-VL-2B-Instruct + LoRA (r 16, α 32) trained on BigEarthNet.txt Sentinel-1/2 image–text pairs", "Adaptation ↓", "#adaptation"],
+  ["Single-image VQA", "Presence, counting, proportion and attribute answers grounded in spectral evidence", "Hyderabad scene", `/analysis?scene=hyd&q=${q("How many water bodies are visible?")}&run=1`],
+  ["Captioning / text-guided grounding", "Scene captions naming major objects; referring expressions resolved to mask + box on image and map", "“Highlight the water body”", `/analysis?scene=hyd&q=${q("Highlight the water body referred to in the query.")}&run=1`],
+  ["Change description / change-VQA", "Post-classification + change-vector analysis, transition matrix, change-VQA and a 10-epoch trend", "Navi Mumbai 2017→2026", `/analysis?scene=nmia&q=${q("What changed between these two dates, and where did the change occur?")}&run=1`],
+  ["Optical–SAR paired analysis", "SAR segmentation + evidence-level fusion with disagreement map and per-pixel inspector", "Mumbai optical + SAR", `/analysis?scene=mum-fusion&q=${q("Use the optical and SAR images together to identify built-up and water-covered regions.")}&run=1`],
+  ["Agentic orchestration & auditable trace", "Validate → route → plan → execute → aggregate → answer; every step logs tool, version, permitted params, output and time", "Tool registry", "/api-docs#registry"],
+  ["Visual evidence, confidence, reports", "Overlays on image and real map, calibrated confidence with its components, PDF / GeoJSON / JSON exports", "Any answer card", "/analysis?scene=hyd"],
+  ["Formats", "GeoTIFF / TIFF for geospatial data; PNG / JPEG accepted and flagged for public benchmark samples only", "Validator rules", "/api-docs#errors"],
+];
+
+export default function Home() {
+  const tasks = Object.keys(TASK_LABEL).filter((t) => t !== "rejected").length;
   return (
     <>
-      {/* ═══════════════════════════════════════════════════════════════════
-          HERO SECTION
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="hero-section">
-        <div className="hero-bg" style={{ backgroundImage: "url(/images/image1.jpg)" }} />
-        <div className="hero-overlay" />
-
-        <div className="container" style={{ padding: "0 1.5rem", position: "relative", zIndex: 3 }}>
-          <motion.div
-            className="hero-content"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            style={{ paddingTop: "6rem" }}
-          >
-            <div
-              className="section-label"
-              style={{ color: "var(--gold-300)", marginBottom: "1.25rem" }}
-            >
-              Vision-Language Assistant for Remote Sensing
-            </div>
-
-            <h1
-              style={{
-                fontSize: "clamp(2.25rem, 5vw, 3.75rem)",
-                fontWeight: 800,
-                color: "var(--surface-white)",
-                lineHeight: 1.1,
-                marginBottom: "1.5rem",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Analyse Satellite Imagery
-              <br />
-              with <span className="gold-accent">Natural Language</span>
-            </h1>
-
-            <p
-              style={{
-                fontSize: "1.125rem",
-                color: "rgba(255,255,255,0.75)",
-                maxWidth: "540px",
-                lineHeight: 1.7,
-                marginBottom: "2.5rem",
-              }}
-            >
-              SatQuery AI is an agentic assistant that interprets your queries,
-              selects specialist remote-sensing models, and returns evidence-grounded
-              analysis from optical, SAR, and multi-temporal satellite imagery.
-            </p>
-
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-              <Link href="/analysis" className="btn btn-gold">
-                Start Analysis
-                <ArrowRight size={18} />
-              </Link>
-              <Link href="/about" className="btn btn-secondary">
-                Learn More
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5 }}
-          style={{
-            position: "absolute",
-            bottom: "2rem",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 3,
-            color: "rgba(255,255,255,0.4)",
-          }}
-        >
-          <ArrowDownCircle size={28} />
-        </motion.div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          SATELLITE IMAGE SHOWCASE (Visual Intelligence)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="section">
-        <div className="container">
-          <FadeInSection>
-            <div style={{ textAlign: "center", marginBottom: "3rem" }}>
-              <span className="section-label">Visual Intelligence</span>
-              <h2 style={{ fontSize: "2rem", fontWeight: 700 }}>
-                Satellite Remote Sensing
-              </h2>
-              <p style={{ color: "var(--grey-500)", maxWidth: "560px", margin: "0.75rem auto 0", fontSize: "1.0625rem" }}>
-                From optical imagery to SAR data — SatQuery AI understands the full spectrum
-                of remote-sensing modalities.
+      <main className="overflow-hidden">
+        {/* ─── Hero ─── */}
+        <section className="relative bg-glow" style={{ paddingTop: "var(--nav-h)" }}>
+          <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_40%,transparent_75%)]" />
+          <div className="relative mx-auto grid max-w-[1320px] items-center gap-12 px-5 pb-16 pt-14 md:px-8 lg:grid-cols-[1fr_1.05fr] lg:pb-24 lg:pt-20">
+            <div>
+              <h1 className="display text-[44px] font-semibold text-ink sm:text-[56px] xl:text-[64px]">
+                Ask satellite imagery anything. <span className="text-gradient">Get answers you can check.</span>
+              </h1>
+              <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-ink-2">
+                SatQuery AI is an agentic vision-language assistant for remote sensing. It validates your optical, SAR or multi-temporal GeoTIFFs, routes the question to specialist models, and answers with masks on the image and the real map, charts, calibrated confidence and an auditable trace.
               </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/analysis" className="btn btn-primary btn-lg">
+                  Launch analysis console <ArrowRight size={17} />
+                </Link>
+                <Link href="/api-docs" className="btn btn-ghost btn-lg">
+                  API reference
+                </Link>
+              </div>
+              <div className="mt-10 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  ["3", "input configurations"],
+                  [String(TOOL_REGISTRY.length), "registered tools"],
+                  [String(tasks), "routed task types"],
+                  ["5", "real Sentinel test scenes"],
+                ].map(([v, l]) => (
+                  <div key={l} className="rounded-xl border border-line bg-panel/60 px-3 py-3">
+                    <p className="display text-[26px] font-semibold leading-none text-ink">{v}</p>
+                    <p className="mt-1.5 text-[11.5px] leading-snug text-ink-3">{l}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </FadeInSection>
+            <div className="relative">
+              <div className="absolute -inset-6 -z-10 rounded-[32px] bg-gradient-to-br from-saffron/10 via-transparent to-cyan/10 blur-2xl" />
+              <HeroDemo />
+            </div>
+          </div>
+        </section>
 
-          <FadeInSection delay={0.1}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                gap: "1.5rem",
-              }}
-            >
-              {[
-                { src: "/images/image1.jpg", title: "Optical Satellite View", desc: "High-resolution Earth observation from orbit" },
-                { src: "/images/earth_night.jpg", title: "Night-time Observation", desc: "Urban infrastructure and settlement mapping" },
-                { src: "/images/satellite_scanning.jpg", title: "Active Radar Scanning", desc: "SAR-based terrain and structure analysis" },
-              ].map((img) => (
-                <div
-                  key={img.title}
-                  style={{
-                    borderRadius: "var(--radius-lg)",
-                    overflow: "hidden",
-                    border: "1px solid var(--grey-200)",
-                    background: "var(--surface-white)",
-                    transition: "all 0.35s var(--ease-out)",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = "none";
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                >
-                  {/* Fixed 16:10 container with object-position:center to crop evenly */}
-                  <div style={{ position: "relative", aspectRatio: "16 / 10", overflow: "hidden" }}>
-                    <Image
-                      src={img.src}
-                      alt={img.title}
-                      fill
-                      style={{ objectFit: "cover", objectPosition: "center center" }}
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                    />
-                  </div>
-                  <div style={{ padding: "1.25rem" }}>
-                    <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.25rem" }}>
-                      {img.title}
-                    </h3>
-                    <p style={{ fontSize: "0.875rem", color: "var(--grey-500)" }}>
-                      {img.desc}
-                    </p>
-                  </div>
+        {/* ─── Problem → approach ─── */}
+        <section className="hairline-top bg-bg-2 py-20">
+          <div className="mx-auto max-w-[1320px] px-5 md:px-8">
+            <Reveal>
+              <SectionHead
+                eyebrow="Why an agent"
+                title={<>One question box instead of a dozen single-task tools</>}
+                body="Operational questions rarely fit one model. Water under monsoon cloud needs SAR; “what changed?” needs two dates; “where is it?” needs grounding. SatQuery hides the GIS workflow and model selection behind plain language — without hiding the evidence."
+              />
+            </Reveal>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Reveal>
+                <div className="panel h-full p-6">
+                  <p className="eyebrow mb-4">Today</p>
+                  <ul className="space-y-3 text-[14.5px] text-ink-2">
+                    {[
+                      "A separate model for classification, detection, VQA and change detection",
+                      "Users must know sensor characteristics, band maths and GIS workflows",
+                      "Optical fails under cloud and at night; SAR alone confuses tarmac and water",
+                      "Black-box answers with no evidence, confidence or audit trail",
+                    ].map((t) => (
+                      <li key={t} className="flex gap-3">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-crit" />
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
-            </div>
-          </FadeInSection>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          SUPPORTED FORMATS BANNER (Input Specs)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section
-        style={{
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: "url(/images/image2.jpg)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(135deg, rgba(7,26,51,0.92), rgba(10,46,92,0.88))",
-          }}
-        />
-        <div
-          className="container"
-          style={{
-            position: "relative",
-            zIndex: 2,
-            padding: "3.5rem 1.5rem",
-            textAlign: "center",
-          }}
-        >
-          <FadeInSection>
-            <span className="section-label" style={{ color: "var(--gold-300)" }}>
-              Input Specifications
-            </span>
-            <h2
-              style={{
-                fontSize: "1.75rem",
-                fontWeight: 700,
-                color: "var(--surface-white)",
-                marginBottom: "1.5rem",
-              }}
-            >
-              Supported Image Formats
-            </h2>
-            <div
-              style={{
-                display: "flex",
-                gap: "1rem",
-                justifyContent: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              {[
-                { label: "GeoTIFF", desc: "Primary geospatial format" },
-                { label: "TIFF", desc: "Standard raster format" },
-              ].map((fmt) => (
-                <div
-                  key={fmt.label}
-                  style={{
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    borderRadius: "var(--radius-lg)",
-                    padding: "1.25rem 2rem",
-                    minWidth: "180px",
-                    backdropFilter: "blur(8px)",
-                  }}
-                >
-                  <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--gold-300)", marginBottom: "0.25rem" }}>
-                    {fmt.label}
-                  </div>
-                  <div style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.6)" }}>
-                    {fmt.desc}
-                  </div>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <div className="panel h-full border-cyan/25 p-6">
+                  <p className="eyebrow mb-4 !text-cyan-2">With SatQuery AI</p>
+                  <ul className="space-y-3 text-[14.5px] text-ink-2">
+                    {[
+                      "One natural-language interface over single, optical–SAR and bi-temporal inputs",
+                      "Inputs validated automatically: format, CRS, co-registration, time gap",
+                      "The controller picks, sequences and parameterises remote-sensing specialists",
+                      "Every answer ships masks, maps, charts, calibrated confidence and a trace",
+                    ].map((t) => (
+                      <li key={t} className="flex gap-3">
+                        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-ok" />
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              </Reveal>
             </div>
-            <p style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.45)", marginTop: "1rem" }}>
-              PNG and JPEG may be accepted for prescribed public benchmark datasets only.
-            </p>
-          </FadeInSection>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          HOW IT WORKS — Neural Impulse Flow (Workflow)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="section" id="how-it-works">
-        <div className="container">
-          <FadeInSection>
-            <div style={{ textAlign: "center", marginBottom: "3.5rem" }}>
-              <span className="section-label">Workflow</span>
-              <h2 style={{ fontSize: "2rem", fontWeight: 700 }}>How It Works</h2>
-              <p style={{ color: "var(--grey-500)", maxWidth: "520px", margin: "0.75rem auto 0", fontSize: "1.0625rem" }}>
-                From image upload to evidence-grounded answers — a neural pipeline
-                that routes your query through specialist models.
-              </p>
-            </div>
-          </FadeInSection>
-
-          <FadeInSection delay={0.15}>
-            <div className="neural-flow-container">
-              {STEPS.map((step, i) => (
-                <React.Fragment key={step.title}>
-                  {/* Step node */}
-                  <div className="neural-step">
-                    <div className="neural-node">
-                      <div className="neural-node-ring" />
-                      <div className="neural-node-inner">
-                        {step.icon}
+        {/* ─── Capabilities ─── */}
+        <section id="capabilities" className="py-20">
+          <div className="mx-auto max-w-[1320px] px-5 md:px-8">
+            <Reveal>
+              <SectionHead eyebrow="Capabilities" title="Every mandatory task, on real imagery" body="Each card opens the console with a real Sentinel scene loaded and the question already asked." />
+            </Reveal>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {CAPABILITIES.map((c, i) => (
+                <Reveal key={c.title} delay={(i % 3) * 0.06}>
+                  <Link href={c.href} className="panel group flex h-full flex-col overflow-hidden transition-colors hover:border-cyan/35">
+                    <div className="relative h-[210px] overflow-hidden border-b border-line bg-[#04070d]">
+                      <CapabilityVisual kind={c.visual} />
+                    </div>
+                    <div className="flex flex-1 flex-col p-5">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.05] text-cyan">{c.icon}</span>
+                        <p className="text-[16px] font-semibold text-ink">{c.title}</p>
+                      </div>
+                      <p className="flex-1 text-[13.5px] leading-relaxed text-ink-2">{c.body}</p>
+                      <div className="mt-4 flex items-center justify-between">
+                        <span className="badge">{c.req}</span>
+                        <span className="flex items-center gap-1 text-[13px] font-medium text-cyan-2 group-hover:underline">
+                          Try it <ArrowUpRight size={14} />
+                        </span>
                       </div>
                     </div>
-                    <h3 style={{ fontSize: "1rem", fontWeight: 600, marginTop: "0.875rem", marginBottom: "0.25rem", color: "var(--navy-800)" }}>
-                      {step.title}
-                    </h3>
-                    <p style={{ fontSize: "0.8125rem", color: "var(--grey-500)", lineHeight: 1.55, maxWidth: "160px", margin: "0 auto" }}>
-                      {step.desc}
-                    </p>
-                  </div>
-
-                  {/* Neural connector between steps */}
-                  {i < STEPS.length - 1 && (
-                    <div className="neural-connector">
-                      <NeuralConnector index={i} />
-                    </div>
-                  )}
-                </React.Fragment>
+                  </Link>
+                </Reveal>
               ))}
             </div>
-          </FadeInSection>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          FEATURES SECTION (Core Capabilities)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="section section-alt" id="features">
-        <div className="container">
-          <FadeInSection>
-            <div style={{ textAlign: "center", marginBottom: "3.5rem" }}>
-              <span className="section-label">Core Capabilities</span>
-              <h2 style={{ fontSize: "2rem", fontWeight: 700 }}>
-                Intelligent Multi-Task Analysis
-              </h2>
-              <p style={{ color: "var(--grey-500)", maxWidth: "600px", margin: "0.75rem auto 0", fontSize: "1.0625rem" }}>
-                A unified platform that adapts to your query and automatically selects
-                the appropriate analysis pipeline.
-              </p>
-            </div>
-          </FadeInSection>
-
-          <div className="features-grid">
-            {FEATURES.map((f, i) => (
-              <FadeInSection key={f.title} delay={i * 0.08}>
-                <div className="feature-card" style={{ height: "100%", background: "var(--surface-white)" }}>
-                  <div className="feature-card-icon">{f.icon}</div>
-                  <h3 style={{ fontSize: "1.0625rem", fontWeight: 600, marginBottom: "0.625rem" }}>
-                    {f.title}
-                  </h3>
-                  <p style={{ fontSize: "0.9375rem", color: "var(--grey-500)", lineHeight: 1.65 }}>
-                    {f.desc}
-                  </p>
-                </div>
-              </FadeInSection>
-            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          CTA SECTION (Ready to analyse)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section
-        className="section section-dark"
-        style={{
-          backgroundImage: "url(/images/pattern_bg.jpg)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundBlendMode: "overlay",
-        }}
-      >
-        <div className="container" style={{ textAlign: "center" }}>
-          <FadeInSection>
-            <div style={{ maxWidth: "560px", margin: "0 auto" }}>
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: "50%",
-                  background: "var(--navy-700)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 1.5rem",
-                }}
-                className="animate-pulse-glow"
-              >
-                <Satellite size={26} style={{ color: "var(--gold-300)" }} />
-              </div>
-              <h2 style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--surface-white)", marginBottom: "1rem" }}>
-                Ready to Analyse Satellite Imagery?
-              </h2>
-              <p style={{ fontSize: "1.0625rem", color: "var(--grey-400)", marginBottom: "2rem", lineHeight: 1.65 }}>
-                Upload your GeoTIFF images, ask a question, and let the AI agent
-                select the optimal analysis pipeline for you.
-              </p>
-              <Link href="/analysis" className="btn btn-gold">
-                Go to Analysis
-                <ArrowRight size={18} />
-              </Link>
+        {/* ─── Agent pipeline ─── */}
+        <section className="hairline-top bg-bg-2 py-20">
+          <div className="mx-auto max-w-[1320px] px-5 md:px-8">
+            <Reveal>
+              <SectionHead eyebrow="How the agent works" title="Validate, route, plan, execute, aggregate, answer" body="The controller is a LangGraph state machine over a typed tool registry. Only the observable trace — task, tools, versions, permitted parameters, outputs and timings — is exposed, exactly what an evaluator needs to audit." />
+            </Reveal>
+            <Reveal>
+              <AgentPipeline />
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ─── Coverage map ─── */}
+        <section className="py-20">
+          <div className="mx-auto max-w-[1320px] px-5 md:px-8">
+            <Reveal>
+              <SectionHead eyebrow="Real data, real places" title="Tested on Sentinel-1 and Sentinel-2 scenes over India" body="Three sites, five GeoTIFFs and ten yearly epochs, read from the Copernicus archive. Click a site to fly to its footprint on a real basemap." />
+            </Reveal>
+            <Reveal>
+              <CoverageMap />
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ─── Adaptation & evaluation ─── */}
+        <section id="adaptation" className="hairline-top bg-bg-2 py-20">
+          <div className="mx-auto max-w-[1320px] px-5 md:px-8">
+            <Reveal>
+              <SectionHead eyebrow="Remote-sensing adaptation" title="Adapted to satellite data — not a generic VLM" body="The vision-language core is fine-tuned on BigEarthNet.txt's co-registered Sentinel-1 / Sentinel-2 image–text pairs, and every specialist is evaluated on the prescribed public benchmarks." />
+            </Reveal>
+            <div className="grid gap-5 lg:grid-cols-[1fr_1.3fr]">
+              <Reveal>
+                <div className="panel h-full p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Layers3 size={17} className="text-saffron" />
+                    <p className="text-[16px] font-semibold text-ink">SatQuery-VLM</p>
+                  </div>
+                  <dl className="space-y-3 text-[13.5px]">
+                    {[
+                      ["Base model", "Qwen2-VL-2B-Instruct"],
+                      ["Adapter", "LoRA · r 16 · α 32 · dropout 0.05"],
+                      ["Target modules", "q_proj · k_proj · v_proj · o_proj"],
+                      ["Adaptation data", "BigEarthNet.txt — Sentinel-1 SAR + Sentinel-2 MSI + text"],
+                      ["Training", "AMP · cosine LR · gradient accumulation (scripts/train_lora.py)"],
+                      ["Data prep", "scripts/setup_bigearthnet_data.py → VQA / caption pairs"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="grid grid-cols-[130px_1fr] gap-3 border-b border-line pb-3 last:border-0 last:pb-0">
+                        <dt className="text-ink-3">{k}</dt>
+                        <dd className="mono text-[12.5px] text-ink">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <div className="panel h-full overflow-hidden">
+                  <div className="flex items-center gap-2 border-b border-line px-6 py-4">
+                    <Boxes size={17} className="text-cyan" />
+                    <p className="text-[16px] font-semibold text-ink">Evaluation protocol</p>
+                    <span className="ml-auto mono text-[11.5px] text-ink-3">scripts/evaluate.py</span>
+                  </div>
+                  <div className="overflow-x-auto px-3 pb-2">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Benchmark</th>
+                          <th>Tasks</th>
+                          <th>Metrics</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          ["VRSBench", "Captioning · grounding · VQA", "BLEU-4, METEOR, CIDEr · Acc@0.5 IoU · accuracy"],
+                          ["RSVQA (LR / HR)", "Single-image VQA", "Overall and per-question-type accuracy"],
+                          ["CDVQA", "Change-based VQA", "Overall accuracy by question type"],
+                          ["ISRO / SAC set", "Cartosat-2S + RISAT pairs, all tasks", "Task scores, normalised then combined"],
+                        ].map((r) => (
+                          <tr key={r[0]}>
+                            <td className="font-medium text-ink">{r[0]}</td>
+                            <td>{r[1]}</td>
+                            <td>{r[2]}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="border-t border-line px-6 py-3 text-[12px] text-ink-3">Benchmark loaders for VRSBench, RSVQA and CDVQA ship in scripts/benchmark_loaders; scores are reported on the prescribed test splits.</p>
+                </div>
+              </Reveal>
             </div>
-          </FadeInSection>
-        </div>
-      </section>
+          </div>
+        </section>
+
+        {/* ─── Requirement coverage ─── */}
+        <section className="py-20">
+          <div className="mx-auto max-w-[1320px] px-5 md:px-8">
+            <Reveal>
+              <SectionHead eyebrow="Requirement coverage" title="Problem statement → where to see it" />
+            </Reveal>
+            <Reveal>
+              <div className="panel overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Requirement</th>
+                      <th>How SatQuery AI meets it</th>
+                      <th>See it</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COVERAGE.map(([req, how, see, href]) => (
+                      <tr key={req}>
+                        <td className="whitespace-nowrap font-medium text-ink">
+                          <span className="flex items-center gap-2">
+                            <ShieldCheck size={14} className="text-ok" />
+                            {req}
+                          </span>
+                        </td>
+                        <td className="min-w-[320px]">{how}</td>
+                        <td className="whitespace-nowrap">
+                          <Link href={href} className="inline-flex items-center gap-1 text-cyan-2 hover:underline">
+                            {see} <ArrowUpRight size={13} />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ─── CTA ─── */}
+        <section className="relative overflow-hidden border-t border-line py-20">
+          <div className="bg-glow absolute inset-0" />
+          <div className="relative mx-auto max-w-3xl px-5 text-center">
+            <h2 className="display text-[36px] font-semibold text-ink md:text-[44px]">Bring a GeoTIFF. Ask a question.</h2>
+            <p className="mx-auto mt-4 max-w-xl text-[16px] leading-relaxed text-ink-2">Load one of the real test scenes or drop your own — the agent validates it, picks the tools and shows its work.</p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link href="/analysis" className="btn btn-primary btn-lg">
+                Launch analysis console <ArrowRight size={17} />
+              </Link>
+              <a href={MUM.samples.s2.url} download className="btn btn-ghost btn-lg">
+                <FileDown size={16} /> Download a sample GeoTIFF
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
     </>
   );
 }

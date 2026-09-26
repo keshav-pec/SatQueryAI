@@ -41,7 +41,7 @@ SatQuery AI is a software-based agentic vision-language assistant for analysing 
 | **Bi-Temporal Change Analysis** | Change description and change-based VQA from bi-temporal image pairs | ✅ |
 | **Cross-Modal Pair Analysis** | Joint information extraction from co-registered optical–SAR image pairs | ✅ |
 | **Agentic Orchestration** | Automatic task classification, model selection, execution sequencing, and output integration via LangGraph | ✅ |
-| **Interactive GUI** | Web application with image upload, natural-language query, results display, and execution trace | ✅ |
+| **Interactive GUI** | Analysis console: GeoTIFF upload with in-browser validation, grounded evidence on the image and a real map, optical–SAR fusion workspace, change compare/timeline, charts, PDF / GeoJSON / JSON reports | ✅ |
 | **Execution Summaries** | Auditable execution trace with selected task, model/tool names, and key parameters | ✅ |
 
 ### Representative Queries Supported
@@ -60,8 +60,8 @@ SatQuery AI is a software-based agentic vision-language assistant for analysing 
 ┌────────────────────────────────────────────────────────────────┐
 │                        SatQuery AI                             │
 ├────────────────┬───────────────────────────────────────────────┤
-│   Frontend     │   Next.js 16 · TypeScript · Framer Motion    │
-│   (Vercel)     │   Interactive analysis dashboard              │
+│   Frontend     │   Next.js 16 · TypeScript · MapLibre GL      │
+│   (Vercel)     │   geotiff.js · jsPDF · SVG charts             │
 ├────────────────┼───────────────────────────────────────────────┤
 │   API Layer    │   FastAPI · REST · CORS · File Upload         │
 ├────────────────┼───────────────────────────────────────────────┤
@@ -92,8 +92,9 @@ SatQuery AI is a software-based agentic vision-language assistant for analysing 
 | **Agent Framework** | LangGraph (StateGraph) |
 | **Backend** | Python · FastAPI · PyTorch · Transformers |
 | **GeoTIFF Processing** | Rasterio · NumPy |
-| **Frontend** | Next.js 16 · TypeScript · React 19 |
-| **Animations** | Framer Motion |
+| **Frontend** | Next.js 16 · TypeScript · React 19 · Tailwind CSS 4 |
+| **Maps & rasters** | MapLibre GL (Esri World Imagery basemap) · geotiff.js (in-browser GeoTIFF parsing) |
+| **Reports** | jsPDF (PDF) · GeoJSON · JSON execution trace |
 | **Evaluation Metrics** | BLEU-1→4 · ROUGE-L · Exact Match |
 | **Benchmarks** | VRSBench · RSVQA · CDVQA |
 
@@ -159,8 +160,30 @@ cd frontend
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.  
-Use the sample GeoTIFFs in `test_samples/` to test the application.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+The frontend also runs **on its own**: the analysis console ships five real Sentinel-1/2 test scenes (`frontend/public/demo/samples/`) with cached specialist outputs, so every capability can be demonstrated offline. Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` to show an Offline / Live switch that sends queries to the FastAPI backend.
+
+Recording the demo video: follow [`frontend/DEMO_SCRIPT.md`](frontend/DEMO_SCRIPT.md) and use `npm run build && npm start` for a clean production build.
+
+---
+
+## 🛰️ Demo Assets (real Sentinel data)
+
+`frontend/scripts/build_demo_assets.py` rebuilds every test scene from open Copernicus data on Microsoft Planetary Computer (no account needed):
+
+| Scene | Data | Used for |
+|---|---|---|
+| Hyderabad — Hussain Sagar | Sentinel-2 L2A, 07 Jan 2025 | Captioning, VQA, text-guided grounding |
+| Mumbai — Bandra · Kurla · CSMIA | Sentinel-2 L2A (06 Jan 2025) + Sentinel-1 RTC VV/VH (07 Jan 2025, 06:33 IST) | SAR VQA, optical–SAR fusion |
+| Navi Mumbai International Airport | Sentinel-2 L2A, 03 Jan 2017 → 16 Jan 2026 + 10 yearly epochs | Change description, change-VQA, trend |
+
+It writes GeoTIFF samples, preview/overlay images and the evidence JSON (areas, polygons, histograms, time series) that the console's answers are built from, using spectral indices, Otsu SAR thresholding, rule-based optical–SAR fusion and post-classification change detection.
+
+```bash
+cd frontend
+npm run demo:assets        # = ../venv/bin/python scripts/build_demo_assets.py
+```
 
 ---
 
@@ -225,15 +248,26 @@ SatQueryAI/
 │   ├── metrics.py                 # VQA metrics (BLEU, ROUGE-L, EM)
 │   └── benchmark_loaders/         # VRSBench, RSVQA, CDVQA dataset loaders
 ├── frontend/
+│   ├── DEMO_SCRIPT.md             # Shot list for the demo video
+│   ├── scripts/
+│   │   ├── build_demo_assets.py   # Real Sentinel-1/2 test scenes + evidence JSON
+│   │   └── copy-maplibre-worker.mjs
+│   ├── public/demo/               # Sample GeoTIFFs, previews, overlays
 │   └── src/
 │       ├── app/
-│       │   ├── page.tsx           # Landing page
-│       │   ├── analysis/page.tsx  # Analysis dashboard
-│       │   ├── about/page.tsx     # About & architecture
-│       │   └── api-docs/page.tsx  # API documentation
-│       └── components/
-│           ├── Navbar.tsx
-│           └── Footer.tsx
+│       │   ├── page.tsx           # Overview (landing) page
+│       │   ├── analysis/page.tsx  # Analysis console
+│       │   └── api-docs/page.tsx  # API reference + playground
+│       ├── components/
+│       │   ├── console/           # Inputs, canvas views, agent panel, trace
+│       │   ├── charts/            # SVG charts (dataviz-validated palette)
+│       │   ├── map/               # MapLibre real-map component
+│       │   ├── home/  api/  site/
+│       └── lib/
+│           ├── engine/            # Intent router, tool registry, agent run loop
+│           ├── geo/               # GeoTIFF parsing, UTM, pair compatibility
+│           ├── demo/              # Scenes, cached outputs, generated evidence
+│           └── report/            # PDF / GeoJSON / JSON exports
 ├── data/
 │   ├── raw/                       # Sentinel-1 & Sentinel-2 GeoTIFFs
 │   ├── processed/                 # Training JSON & LoRA weights

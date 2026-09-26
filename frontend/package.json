@@ -6,11 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "demo:assets": "../venv/bin/python scripts/build_demo_assets.py"
   },
   "dependencies": {
     "framer-motion": "^13.1.1",
+    "geotiff": "^3.0.5",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.37.0",
+    "maplibre-gl": "^6.11.2",
     "next": "16.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8"

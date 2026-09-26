@@ -28,6 +28,8 @@ data/temp_uploads/
 
 # Allow test samples
 !data/test_samples/
+# Frontend demo scenes are small (~26 MB) and required by the analysis console
+!frontend/public/demo/samples/*.tif
 !data/processed/ben_sample.json
 
 # Frontend (Next.js)
